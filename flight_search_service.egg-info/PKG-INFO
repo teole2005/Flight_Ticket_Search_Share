@@ -1,0 +1,92 @@
+Metadata-Version: 2.4
+Name: flight-search-service
+Version: 0.1.0
+Summary: Automated flight search orchestrator across multiple websites.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn[standard]>=0.30.0
+Requires-Dist: sqlalchemy>=2.0.32
+Requires-Dist: aiosqlite>=0.20.0
+Requires-Dist: asyncpg>=0.29.0
+Requires-Dist: redis>=5.0.7
+Requires-Dist: httpx>=0.27.0
+Requires-Dist: pydantic>=2.8.2
+Requires-Dist: pydantic-settings>=2.4.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: playwright>=1.46.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.2; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.8; extra == "dev"
+Requires-Dist: ruff>=0.6.0; extra == "dev"
+
+# Flight Search Service
+
+Automated flight search backend that:
+- accepts a search query,
+- runs multiple website connectors in parallel (`trip_com`, `airasia`, etc.),
+- normalizes and ranks offers by cheapest total price,
+- returns flight details and booking URLs,
+- stores history in PostgreSQL/SQLite and caches repeated queries in Redis.
+
+## Quick start
+
+1. Copy environment config:
+```bash
+cp .env.example .env
+```
+
+2. Install dependencies:
+```bash
+pip install -e .[dev]
+python -m playwright install chromium
+```
+
+3. Run API:
+```bash
+uvicorn app.main:app --reload
+```
+
+4. Open docs:
+`http://localhost:8000/docs`
+
+## Docker
+
+```bash
+docker compose up --build
+```
+
+## API
+
+- `POST /v1/search`
+- `GET /v1/search/{search_id}`
+- `GET /v1/health/connectors`
+
+Example request:
+
+```json
+{
+  "origin": "KUL",
+  "destination": "BKK",
+  "departure_date": "2026-03-20",
+  "return_date": "2026-03-25",
+  "trip_type": "round_trip",
+  "adults": 1,
+  "children": 0,
+  "infants": 0,
+  "cabin": "economy",
+  "currency": "MYR",
+  "sources": ["trip_com", "airasia"]
+}
+```
+
+## Notes for real-world scraping
+
+- Prefer official APIs/affiliate feeds where available.
+- Browser selectors are configurable in `.env`; update them when websites change.
+- Respect each website's terms of service and rate limits.
+- `trip_com` currently uses the verified card selector: `[data-testid^='u-flight-card-']`.
+- `airasia` uses a hybrid flow:
+  - station lookup + auth (`/api/auth`) + lowfare API for date pricing,
+  - deep-link generation (`/deeplink/v1/encryptdeeplink`) for booking URL,
+  - schedule extraction from the resulting `/select/...` page.

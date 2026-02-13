@@ -1,0 +1,2 @@
+"""Flight search service package."""
+

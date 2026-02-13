@@ -110,22 +110,25 @@ class SearchWorker:
                 offers=ranked,
                 connector_runs=runs,
             )
-            await self._cache.set_json(
-                cache_key_for_query_hash(query_hash),
-                {
-                    "offers": [offer.to_jsonable() for offer in ranked],
-                    "connector_runs": [
-                        {
-                            "source": run.source,
-                            "status": run.status,
-                            "latency_ms": run.latency_ms,
-                            "error_message": run.error_message,
-                        }
-                        for run in runs
-                    ],
-                },
-                ttl_seconds=self._settings.cache_ttl_seconds,
-            )
+            if ranked:
+                await self._cache.set_json(
+                    cache_key_for_query_hash(query_hash),
+                    {
+                        "offers": [offer.to_jsonable() for offer in ranked],
+                        "connector_runs": [
+                            {
+                                "source": run.source,
+                                "status": run.status,
+                                "latency_ms": run.latency_ms,
+                                "error_message": run.error_message,
+                            }
+                            for run in runs
+                        ],
+                    },
+                    ttl_seconds=self._settings.cache_ttl_seconds,
+                )
+            else:
+                logger.info("Skipping cache for empty result search_id=%s", search_id)
             logger.info(
                 "Search completed search_id=%s offers=%s sources=%s",
                 search_id,
@@ -171,8 +174,8 @@ class SearchWorker:
                         flight_numbers=offer.flight_numbers,
                         origin=offer.origin,
                         destination=offer.destination,
-                        departure_at=offer.departure_at,
-                        arrival_at=offer.arrival_at,
+                        departure_at=_as_utc(offer.departure_at),
+                        arrival_at=_as_utc(offer.arrival_at),
                         stops=offer.stops,
                         duration_minutes=offer.duration_minutes,
                         cabin=offer.cabin,
@@ -186,7 +189,10 @@ class SearchWorker:
                         currency=offer.currency,
                         booking_url=offer.booking_url,
                         deep_link_valid=offer.deep_link_valid,
-                        raw_payload=offer.raw_payload,
+                        raw_payload={
+                            "_stored_timezone": "utc",
+                            **offer.raw_payload,
+                        },
                     )
                 )
             if offer_models:
@@ -240,3 +246,9 @@ def _decimal_to_float(value: Decimal | None) -> float | None:
     if value is None:
         return None
     return float(value)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)

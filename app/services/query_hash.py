@@ -5,6 +5,8 @@ import json
 
 from app.schemas import SearchCreateRequest
 
+_CACHE_KEY_VERSION = "v3"
+
 
 def build_query_hash(query: SearchCreateRequest) -> str:
     payload = query.model_dump(mode="json")
@@ -14,5 +16,4 @@ def build_query_hash(query: SearchCreateRequest) -> str:
 
 
 def cache_key_for_query_hash(query_hash: str) -> str:
-    return f"search-result:{query_hash}"
-
+    return f"search-result:{_CACHE_KEY_VERSION}:{query_hash}"

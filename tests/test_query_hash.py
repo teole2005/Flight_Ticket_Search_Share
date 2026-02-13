@@ -1,7 +1,7 @@
 from datetime import date
 
 from app.schemas import SearchCreateRequest
-from app.services.query_hash import build_query_hash
+from app.services.query_hash import build_query_hash, cache_key_for_query_hash
 
 
 def test_query_hash_is_stable_across_source_order() -> None:
@@ -41,3 +41,7 @@ def test_query_hash_changes_when_query_changes() -> None:
     )
     query_b = query_a.model_copy(update={"departure_date": date(2026, 3, 21)})
     assert build_query_hash(query_a) != build_query_hash(query_b)
+
+
+def test_cache_key_uses_versioned_namespace() -> None:
+    assert cache_key_for_query_hash("abc123") == "search-result:v3:abc123"

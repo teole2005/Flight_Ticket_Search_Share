@@ -10,6 +10,6 @@ def filter_offers_by_stops(
 ) -> list[RawFlightOffer]:
     if stop_preference == StopPreference.non_stop:
         return [offer for offer in offers if offer.stops == 0]
-    if stop_preference == StopPreference.multiple_stops:
+    if stop_preference in (StopPreference.with_stops, StopPreference.multiple_stops):
         return [offer for offer in offers if offer.stops >= 1]
     return offers

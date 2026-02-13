@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
+
+_MALAYSIA_TZ = ZoneInfo("Asia/Kuala_Lumpur")
 
 _CURRENCY_MAP = {
     "$": "USD",
@@ -30,6 +33,7 @@ _PRICE_PATTERNS = [
 
 _TIME_PATTERN = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b")
 _STOPS_PATTERN = re.compile(r"(\d+)\s*stop")
+_LAYOVER_PATTERN = re.compile(r"\b\d+h\s+\d+m\s+in\s+[A-Za-z]")
 _FLIGHT_NUMBER_PATTERN = re.compile(r"\b([A-Z0-9]{2,3}\s?\d{2,4})\b")
 _AIRLINE_NOISE_PATTERNS = [
     re.compile(r"\bcarry-?on baggage included\b", re.IGNORECASE),
@@ -77,11 +81,19 @@ def extract_times(text: str) -> tuple[time | None, time | None]:
 
 def extract_stops(text: str) -> int:
     lowered = text.lower()
-    if "non-stop" in lowered or "non stop" in lowered or "direct" in lowered:
+    if (
+        "non-stop" in lowered
+        or "non stop" in lowered
+        or "nonstop" in lowered
+        or "direct" in lowered
+    ):
         return 0
     match = _STOPS_PATTERN.search(lowered)
     if match:
         return int(match.group(1))
+    layovers = _LAYOVER_PATTERN.findall(text)
+    if layovers:
+        return len(layovers)
     return 0
 
 
@@ -116,7 +128,7 @@ def extract_airline_name(text: str, default: str) -> str:
 
 def build_datetime(date_value: date, parsed_time: time | None, fallback_hour: int) -> datetime:
     resolved_time = parsed_time or time(hour=fallback_hour, minute=0)
-    return datetime.combine(date_value, resolved_time).replace(tzinfo=UTC)
+    return datetime.combine(date_value, resolved_time).replace(tzinfo=_MALAYSIA_TZ)
 
 
 def compute_duration_minutes(departure_at: datetime, arrival_at: datetime) -> int:

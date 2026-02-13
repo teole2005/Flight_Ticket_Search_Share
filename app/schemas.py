@@ -22,6 +22,8 @@ class CabinClass(StrEnum):
 class StopPreference(StrEnum):
     any = "any"
     non_stop = "non_stop"
+    with_stops = "with_stops"
+    # Backward compatibility for stored/older client payloads.
     multiple_stops = "multiple_stops"
 
 

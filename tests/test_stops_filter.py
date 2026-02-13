@@ -37,7 +37,13 @@ def test_filter_offers_non_stop_only() -> None:
     assert [item.stops for item in filtered] == [0]
 
 
-def test_filter_offers_multiple_stops_only() -> None:
+def test_filter_offers_with_stops_only() -> None:
+    offers = [_offer(0), _offer(1), _offer(2)]
+    filtered = filter_offers_by_stops(offers, StopPreference.with_stops)
+    assert [item.stops for item in filtered] == [1, 2]
+
+
+def test_filter_offers_legacy_multiple_stops_value_keeps_working() -> None:
     offers = [_offer(0), _offer(1), _offer(2)]
     filtered = filter_offers_by_stops(offers, StopPreference.multiple_stops)
     assert [item.stops for item in filtered] == [1, 2]

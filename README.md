@@ -48,6 +48,7 @@ docker compose up --build
 
 - Offer cards are expandable and fetch ticket detail from `GET /v1/search/{search_id}/offers/{offer_id}` after search results render.
 - The detail panel shows flight numbers, cabin, baggage, fare rules, fare brand, price breakdown, route timing, stops, and booking-link verification.
+- Search response includes up to 5 ranked alternatives (excluding the cheapest card) so the UI stays compact.
 
 ## Troubleshooting: No Best Offer / Alternatives
 

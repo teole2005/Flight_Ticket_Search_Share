@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -26,6 +27,8 @@ from app.services.query_hash import build_query_hash
 from app.workers.search_worker import SearchWorker
 
 router = APIRouter()
+_MALAYSIA_TZ = ZoneInfo("Asia/Kuala_Lumpur")
+_MAX_ALTERNATIVES = 5
 
 
 def _ensure_utc(value: datetime | None) -> datetime | None:
@@ -36,14 +39,24 @@ def _ensure_utc(value: datetime | None) -> datetime | None:
     return value
 
 
+def _offer_datetime_to_utc(value: datetime, raw_payload: dict | None) -> datetime:
+    if value.tzinfo is not None:
+        return value
+    marker = (raw_payload or {}).get("_stored_timezone")
+    if marker == "utc":
+        return value.replace(tzinfo=UTC)
+    # Legacy SQLite rows were saved as naive local wall-time; interpret as Malaysia time.
+    return value.replace(tzinfo=_MALAYSIA_TZ).astimezone(UTC)
+
+
 def _offer_to_out(offer: Offer) -> FlightOfferOut:
     return FlightOfferOut(
         offer_id=offer.id,
         source=offer.source,
         airline=offer.airline,
         flight_numbers=offer.flight_numbers,
-        departure_at=_ensure_utc(offer.departure_at),
-        arrival_at=_ensure_utc(offer.arrival_at),
+        departure_at=_offer_datetime_to_utc(offer.departure_at, offer.raw_payload),
+        arrival_at=_offer_datetime_to_utc(offer.arrival_at, offer.raw_payload),
         stops=offer.stops,
         duration_minutes=offer.duration_minutes,
         cabin=offer.cabin,
@@ -62,8 +75,8 @@ def _offer_to_detail_out(offer: Offer) -> FlightOfferDetailOut:
         source=offer.source,
         airline=offer.airline,
         flight_numbers=offer.flight_numbers,
-        departure_at=_ensure_utc(offer.departure_at),
-        arrival_at=_ensure_utc(offer.arrival_at),
+        departure_at=_offer_datetime_to_utc(offer.departure_at, offer.raw_payload),
+        arrival_at=_offer_datetime_to_utc(offer.arrival_at, offer.raw_payload),
         stops=offer.stops,
         duration_minutes=offer.duration_minutes,
         cabin=offer.cabin,
@@ -79,6 +92,37 @@ def _offer_to_detail_out(offer: Offer) -> FlightOfferDetailOut:
         fees=offer.fees,
         raw_payload=offer.raw_payload,
     )
+
+
+def _select_alternative_offers(offers: list[Offer], limit: int) -> list[Offer]:
+    if limit <= 0 or len(offers) <= 1:
+        return []
+
+    selected: list[Offer] = []
+    selected_ids: set[str] = set()
+    seen_airlines: set[str] = set()
+
+    # First pass: maximize airline variety so one carrier does not dominate the list.
+    for offer in offers[1:]:
+        airline_key = (offer.airline or "").strip().lower()
+        if airline_key in seen_airlines:
+            continue
+        selected.append(offer)
+        selected_ids.add(offer.id)
+        seen_airlines.add(airline_key)
+        if len(selected) >= limit:
+            return selected
+
+    # Second pass: fill the remaining slots with cheapest leftovers.
+    for offer in offers[1:]:
+        if offer.id in selected_ids:
+            continue
+        selected.append(offer)
+        selected_ids.add(offer.id)
+        if len(selected) >= limit:
+            break
+
+    return selected
 
 
 @router.post("/search", response_model=SearchCreateResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -128,7 +172,10 @@ async def get_search(
     )
     offers = list((await session.execute(offers_stmt)).scalars().all())
     cheapest = _offer_to_out(offers[0]) if offers else None
-    alternatives = [_offer_to_out(item) for item in offers[1:6]]
+    settings = get_settings()
+    alternative_limit = min(max(settings.max_offers_per_search - 1, 0), _MAX_ALTERNATIVES)
+    alternative_offers = _select_alternative_offers(offers, alternative_limit)
+    alternatives = [_offer_to_out(item) for item in alternative_offers]
 
     runs_stmt = (
         select(ConnectorRun)

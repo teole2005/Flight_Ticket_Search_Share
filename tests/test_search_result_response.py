@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import HTTPException
@@ -57,6 +58,7 @@ def _build_offer(
     source: str,
     total_price: str,
     booking_url: str,
+    airline: str = "AirAsia",
     fare_brand: str | None = None,
     base_price: str | None = None,
     taxes: str | None = None,
@@ -68,7 +70,7 @@ def _build_offer(
         search_id=search_id,
         source=source,
         dedup_key=f"{source}-{offer_id}",
-        airline="AirAsia",
+        airline=airline,
         flight_numbers=["AK611"],
         origin="KUL",
         destination="BKK",
@@ -347,5 +349,178 @@ async def test_get_search_offer_missing_offer_returns_404(tmp_path) -> None:
 
         assert exc.value.status_code == 404
         assert exc.value.detail == "offer_id not found for search_id"
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_search_converts_legacy_naive_offer_time_as_malaysia_local(tmp_path) -> None:
+    engine, session_factory = await _create_session_factory(tmp_path)
+    search_id = "00000000-0000-0000-0000-000000000106"
+    try:
+        malaysia_tz = ZoneInfo("Asia/Kuala_Lumpur")
+        legacy_local = datetime(2026, 3, 20, 8, 10)
+        expected_utc = legacy_local.replace(tzinfo=malaysia_tz).astimezone(UTC)
+
+        async with session_factory() as session:
+            session.add(
+                SearchRequest(
+                    id=search_id,
+                    query_hash="hash-legacy-time",
+                    query_json=_query_payload(),
+                    status=SearchStatus.completed.value,
+                    created_at=datetime(2026, 2, 12, 11, 0, tzinfo=UTC),
+                    started_at=datetime(2026, 2, 12, 11, 0, 1, tzinfo=UTC),
+                    completed_at=datetime(2026, 2, 12, 11, 0, 3, tzinfo=UTC),
+                )
+            )
+            session.add(
+                Offer(
+                    id="00000000-0000-0000-0000-000000000204",
+                    search_id=search_id,
+                    source="trip_com",
+                    dedup_key="legacy-time-key",
+                    airline="AirAsia",
+                    flight_numbers=["AK611"],
+                    origin="KUL",
+                    destination="BKK",
+                    departure_at=legacy_local,
+                    arrival_at=datetime(2026, 3, 20, 9, 20),
+                    stops=0,
+                    duration_minutes=70,
+                    cabin="economy",
+                    fare_brand=None,
+                    baggage="7kg carry-on",
+                    fare_rules="No refund",
+                    base_price=Decimal("109.00"),
+                    taxes=None,
+                    fees=None,
+                    total_price=109.0,
+                    currency="MYR",
+                    booking_url="https://trip.com/legacy",
+                    deep_link_valid=True,
+                    raw_payload={},
+                )
+            )
+            await session.commit()
+
+        async with session_factory() as session:
+            result = await get_search(search_id=search_id, session=session)
+
+        assert result.cheapest_flight is not None
+        assert result.cheapest_flight.departure_at == expected_utc
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_search_alternatives_include_airline_variety(tmp_path) -> None:
+    engine, session_factory = await _create_session_factory(tmp_path)
+    search_id = "00000000-0000-0000-0000-000000000107"
+    try:
+        async with session_factory() as session:
+            session.add(
+                SearchRequest(
+                    id=search_id,
+                    query_hash="hash-airline-variety",
+                    query_json=_query_payload(),
+                    status=SearchStatus.completed.value,
+                    created_at=datetime(2026, 2, 12, 12, 0, tzinfo=UTC),
+                    started_at=datetime(2026, 2, 12, 12, 0, 1, tzinfo=UTC),
+                    completed_at=datetime(2026, 2, 12, 12, 0, 4, tzinfo=UTC),
+                )
+            )
+            session.add_all(
+                [
+                    _build_offer(
+                        offer_id="00000000-0000-0000-0000-000000000211",
+                        search_id=search_id,
+                        source="trip_com",
+                        total_price="300.00",
+                        booking_url="https://trip.com/e-1",
+                        airline="Emirates",
+                    ),
+                    _build_offer(
+                        offer_id="00000000-0000-0000-0000-000000000212",
+                        search_id=search_id,
+                        source="trip_com",
+                        total_price="320.00",
+                        booking_url="https://trip.com/e-2",
+                        airline="Emirates",
+                    ),
+                    _build_offer(
+                        offer_id="00000000-0000-0000-0000-000000000213",
+                        search_id=search_id,
+                        source="trip_com",
+                        total_price="330.00",
+                        booking_url="https://trip.com/e-3",
+                        airline="Emirates",
+                    ),
+                    _build_offer(
+                        offer_id="00000000-0000-0000-0000-000000000214",
+                        search_id=search_id,
+                        source="trip_com",
+                        total_price="380.00",
+                        booking_url="https://trip.com/aa-1",
+                        airline="American Airlines",
+                    ),
+                ]
+            )
+            await session.commit()
+
+        async with session_factory() as session:
+            result = await get_search(search_id=search_id, session=session)
+
+        assert result.cheapest_flight is not None
+        assert result.cheapest_flight.airline == "Emirates"
+        airlines = {item.airline for item in result.alternatives}
+        assert "American Airlines" in airlines
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_search_limits_alternatives_to_five(tmp_path) -> None:
+    engine, session_factory = await _create_session_factory(tmp_path)
+    search_id = "00000000-0000-0000-0000-000000000108"
+    try:
+        async with session_factory() as session:
+            session.add(
+                SearchRequest(
+                    id=search_id,
+                    query_hash="hash-alt-limit",
+                    query_json=_query_payload(),
+                    status=SearchStatus.completed.value,
+                    created_at=datetime(2026, 2, 12, 13, 0, tzinfo=UTC),
+                    started_at=datetime(2026, 2, 12, 13, 0, 1, tzinfo=UTC),
+                    completed_at=datetime(2026, 2, 12, 13, 0, 5, tzinfo=UTC),
+                )
+            )
+            offers = [
+                _build_offer(
+                    offer_id=f"00000000-0000-0000-0000-00000000022{index}",
+                    search_id=search_id,
+                    source="trip_com",
+                    total_price=f"{200 + index * 10}.00",
+                    booking_url=f"https://trip.com/alt-{index}",
+                    airline=f"Airline {index}",
+                )
+                for index in range(7)
+            ]
+            session.add_all(offers)
+            await session.commit()
+
+        async with session_factory() as session:
+            result = await get_search(search_id=search_id, session=session)
+
+        assert result.cheapest_flight is not None
+        assert len(result.alternatives) == 5
+        assert [item.total_price for item in result.alternatives] == [
+            210.0,
+            220.0,
+            230.0,
+            240.0,
+            250.0,
+        ]
     finally:
         await engine.dispose()

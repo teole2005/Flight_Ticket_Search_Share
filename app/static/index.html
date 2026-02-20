@@ -1,176 +1,182 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Flight Fare Radar</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <div class="background-layer" aria-hidden="true">
-      <div class="shape shape-a"></div>
-      <div class="shape shape-b"></div>
-      <div class="shape shape-c"></div>
-    </div>
 
-    <main class="shell">
-      <header class="hero reveal">
-        <p class="eyebrow">Automated fare intelligence</p>
-        <h1>Search multiple sites and lock the cheapest flight quickly.</h1>
-        <p class="subtitle">
-          Launch a query to `trip_com`, `airasia`, and other connectors. Results are ranked by total
-          price with direct booking links.
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flight Fare Radar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+
+<body>
+  <div class="background-layer" aria-hidden="true">
+    <div class="shape shape-a"></div>
+    <div class="shape shape-b"></div>
+    <div class="shape shape-c"></div>
+  </div>
+
+  <main class="shell">
+    <header class="hero reveal">
+      <p class="eyebrow">Automated fare intelligence</p>
+      <h1>Search multiple sites and lock the cheapest flight quickly.</h1>
+      <p class="subtitle">
+        Launch a query to `trip_com`, `airasia`, and other connectors. Results are ranked by total
+        price with direct booking links.
+      </p>
+    </header>
+
+    <section class="panel reveal" style="--delay: 0.08s">
+      <div class="panel-head">
+        <h2>Search Flights</h2>
+        <button id="sampleRouteButton" type="button" class="ghost-button">Use Sample Route</button>
+      </div>
+
+      <form id="searchForm" class="search-form" novalidate>
+        <div class="trip-switch" id="tripSwitch" role="group" aria-label="Trip type">
+          <button type="button" data-trip="round_trip" class="trip-btn is-active">Round Trip</button>
+          <button type="button" data-trip="one_way" class="trip-btn">One Way</button>
+        </div>
+        <input id="tripType" type="hidden" value="round_trip" />
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Origin (IATA)</span>
+            <input id="origin" type="text" maxlength="3" placeholder="KUL" required />
+          </label>
+
+          <label class="field">
+            <span>Destination (IATA)</span>
+            <input id="destination" type="text" maxlength="3" placeholder="BKK" required />
+          </label>
+
+          <label class="field">
+            <span>Currency</span>
+            <select id="currency">
+              <option value="MYR" selected>MYR (Malaysia Ringgit)</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Departure</span>
+            <input id="departureDate" type="date" required />
+          </label>
+
+          <label class="field" id="returnField">
+            <span>Return</span>
+            <input id="returnDate" type="date" />
+          </label>
+
+          <label class="field">
+            <span>Cabin</span>
+            <select id="cabin">
+              <option value="economy">Economy</option>
+              <option value="premium_economy">Premium Economy</option>
+              <option value="business">Business</option>
+              <option value="first">First</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="field-grid compact">
+          <label class="field">
+            <span>Adults</span>
+            <input id="adults" type="number" min="1" max="9" value="1" required />
+          </label>
+
+          <label class="field">
+            <span>Stops</span>
+            <select id="stopPreference">
+              <option value="any" selected>Any</option>
+              <option value="non_stop">Non-stop only</option>
+              <option value="with_stops">With stops (1+ only)</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset class="source-group">
+          <legend>Sources</legend>
+          <label class="source-option">
+            <input type="checkbox" name="source" value="trip_com" checked />
+            <span>trip_com</span>
+          </label>
+          <label class="source-option">
+            <input type="checkbox" name="source" value="airasia" checked />
+            <span>airasia</span>
+          </label>
+          <label class="source-option">
+            <input type="checkbox" name="source" value="mynztrip" checked />
+            <span>mynztrip</span>
+          </label>
+        </fieldset>
+
+        <button id="searchButton" type="submit" class="primary-button">Search Cheapest Flights</button>
+      </form>
+    </section>
+
+    <section class="panel reveal" style="--delay: 0.16s">
+      <div class="panel-head">
+        <h2>Search Status</h2>
+        <span id="statusPill" class="pill idle">Idle</span>
+      </div>
+      <p id="feedbackText" class="feedback">Submit a search to see live progress.</p>
+
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span>Search ID</span>
+          <code id="searchIdValue">-</code>
+        </div>
+        <div class="meta-item">
+          <span>Last Checked</span>
+          <code id="lastCheckedValue">-</code>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel reveal" style="--delay: 0.24s">
+      <h2>Best Offer</h2>
+      <div id="cheapestContainer" class="empty">No results yet.</div>
+
+      <div id="noResultsPanel" class="no-results-panel hidden">
+        <h3 class="subheading">No Fares Found For This Search</h3>
+        <p class="feedback">
+          Connectors finished, but no bookable ticket matched this query. Check source diagnostics and
+          try one of the suggestions below.
         </p>
-      </header>
-
-      <section class="panel reveal" style="--delay: 0.08s">
-        <div class="panel-head">
-          <h2>Search Flights</h2>
-          <button id="sampleRouteButton" type="button" class="ghost-button">Use Sample Route</button>
-        </div>
-
-        <form id="searchForm" class="search-form" novalidate>
-          <div class="trip-switch" id="tripSwitch" role="group" aria-label="Trip type">
-            <button type="button" data-trip="round_trip" class="trip-btn is-active">Round Trip</button>
-            <button type="button" data-trip="one_way" class="trip-btn">One Way</button>
-          </div>
-          <input id="tripType" type="hidden" value="round_trip" />
-
-          <div class="field-grid">
-            <label class="field">
-              <span>Origin (IATA)</span>
-              <input id="origin" type="text" maxlength="3" placeholder="KUL" required />
-            </label>
-
-            <label class="field">
-              <span>Destination (IATA)</span>
-              <input id="destination" type="text" maxlength="3" placeholder="BKK" required />
-            </label>
-
-            <label class="field">
-              <span>Currency</span>
-              <select id="currency">
-                <option value="MYR" selected>MYR (Malaysia Ringgit)</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>Departure</span>
-              <input id="departureDate" type="date" required />
-            </label>
-
-            <label class="field" id="returnField">
-              <span>Return</span>
-              <input id="returnDate" type="date" />
-            </label>
-
-            <label class="field">
-              <span>Cabin</span>
-              <select id="cabin">
-                <option value="economy">Economy</option>
-                <option value="premium_economy">Premium Economy</option>
-                <option value="business">Business</option>
-                <option value="first">First</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="field-grid compact">
-            <label class="field">
-              <span>Adults</span>
-              <input id="adults" type="number" min="1" max="9" value="1" required />
-            </label>
-
-            <label class="field">
-              <span>Stops</span>
-              <select id="stopPreference">
-                <option value="any" selected>Any</option>
-                <option value="non_stop">Non-stop only</option>
-                <option value="with_stops">With stops (1+ only)</option>
-              </select>
-            </label>
-          </div>
-
-          <fieldset class="source-group">
-            <legend>Sources</legend>
-            <label class="source-option">
-              <input type="checkbox" name="source" value="trip_com" checked />
-              <span>trip_com</span>
-            </label>
-            <label class="source-option">
-              <input type="checkbox" name="source" value="airasia" checked />
-              <span>airasia</span>
-            </label>
-          </fieldset>
-
-          <button id="searchButton" type="submit" class="primary-button">Search Cheapest Flights</button>
-        </form>
-      </section>
-
-      <section class="panel reveal" style="--delay: 0.16s">
-        <div class="panel-head">
-          <h2>Search Status</h2>
-          <span id="statusPill" class="pill idle">Idle</span>
-        </div>
-        <p id="feedbackText" class="feedback">Submit a search to see live progress.</p>
-
-        <div class="meta-grid">
-          <div class="meta-item">
-            <span>Search ID</span>
-            <code id="searchIdValue">-</code>
-          </div>
-          <div class="meta-item">
-            <span>Last Checked</span>
-            <code id="lastCheckedValue">-</code>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel reveal" style="--delay: 0.24s">
-        <h2>Best Offer</h2>
-        <div id="cheapestContainer" class="empty">No results yet.</div>
-
-        <div id="noResultsPanel" class="no-results-panel hidden">
-          <h3 class="subheading">No Fares Found For This Search</h3>
-          <p class="feedback">
-            Connectors finished, but no bookable ticket matched this query. Check source diagnostics and
-            try one of the suggestions below.
-          </p>
-          <div id="noResultsDiagnostics" class="diagnostic-grid"></div>
-          <ul class="hint-list">
-            <li>Try nearby departure dates (for example +/- 2 days).</li>
-            <li>Try one-way first, then compare round-trip total.</li>
-            <li>Run one source at a time (`trip_com` or `airasia`).</li>
-            <li>Confirm airport code and currency combination.</li>
-          </ul>
-        </div>
-
-        <h3 class="subheading">Alternatives</h3>
-        <div id="alternativesContainer" class="offer-list"></div>
-      </section>
-
-      <section class="panel reveal" style="--delay: 0.32s">
-        <div class="panel-head">
-          <h2>Connector Health</h2>
-          <button id="refreshHealthButton" type="button" class="ghost-button">Refresh</button>
-        </div>
-        <div id="healthGrid" class="health-grid"></div>
-      </section>
-
-      <section class="panel reveal" style="--delay: 0.4s">
-        <h2>Connector Errors (This Search)</h2>
-        <ul id="failuresList" class="failure-list">
-          <li class="muted">No connector errors for this search.</li>
+        <div id="noResultsDiagnostics" class="diagnostic-grid"></div>
+        <ul class="hint-list">
+          <li>Try nearby departure dates (for example +/- 2 days).</li>
+          <li>Try one-way first, then compare round-trip total.</li>
+          <li>Run one source at a time (`trip_com` or `airasia`).</li>
+          <li>Confirm airport code and currency combination.</li>
         </ul>
-      </section>
-    </main>
+      </div>
 
-    <script src="/static/app.js" defer></script>
-  </body>
+      <h3 class="subheading">Alternatives</h3>
+      <div id="alternativesContainer" class="offer-list"></div>
+    </section>
+
+    <section class="panel reveal" style="--delay: 0.32s">
+      <div class="panel-head">
+        <h2>Connector Health</h2>
+        <button id="refreshHealthButton" type="button" class="ghost-button">Refresh</button>
+      </div>
+      <div id="healthGrid" class="health-grid"></div>
+    </section>
+
+    <section class="panel reveal" style="--delay: 0.4s">
+      <h2>Connector Errors (This Search)</h2>
+      <ul id="failuresList" class="failure-list">
+        <li class="muted">No connector errors for this search.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="/static/app.js" defer></script>
+</body>
+
 </html>

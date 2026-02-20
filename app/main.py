@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse

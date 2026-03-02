@@ -173,12 +173,14 @@ class MynztripConnector(FlightConnector):
 
             offers = []
             if air_results and air_results.get("flag"):
-                data = air_results.get("data", {})
+                data = air_results.get("data") or {}
                 
-                if "data" in data and "AirSearchResponses" in data["data"]:
-                    flights = data["data"].get("AirSearchResponses", [])
-                else:
-                    flights = data.get("AirSearchResponses", [])
+                flights = []
+                if isinstance(data, dict):
+                    if "data" in data and isinstance(data["data"], dict):
+                        flights = data["data"].get("AirSearchResponses", [])
+                    else:
+                        flights = data.get("AirSearchResponses", [])
                 
                 logger.info("MynztripConnector: Successfully found %d results", len(flights))
                 if not flights:

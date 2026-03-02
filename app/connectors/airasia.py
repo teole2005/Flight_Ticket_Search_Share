@@ -60,7 +60,7 @@ class AirAsiaConnector(FlightConnector):
                 )
 
             jwt_token = await self._fetch_auth_token(client)
-            lowfare_item = await self._fetch_lowfare_item(
+            lowfare_items = await self._fetch_lowfare_item(
                 client=client,
                 jwt_token=jwt_token,
                 origin_station=origin.station_code,
@@ -68,9 +68,11 @@ class AirAsiaConnector(FlightConnector):
                 currency=query.currency,
                 departure_date=query.departure_date,
             )
-            if lowfare_item is None:
+            if not lowfare_items:
                 return []
 
+            # We'll need only one deeplink/schedule fetch usually since AirAsia handles schedule extraction in one go 
+            # or uses fallback for all offers if failing.
             deeplink_error: str | None = None
             try:
                 deeplink_url = await self._fetch_deeplink_url(
@@ -93,33 +95,42 @@ class AirAsiaConnector(FlightConnector):
                     deeplink_error,
                 )
 
-        schedule: list[dict] = []
-        schedule_error: str | None = None
-        if deeplink_url and self.settings.enable_browser_connectors:
-            try:
-                schedule = await self._extract_schedule_from_deeplink(deeplink_url)
-            except Exception as exc:
-                schedule_error = self._describe_exception(exc)
-                logger.warning(
-                    (
-                        "AirAsia schedule extraction failed; continuing without schedule. "
-                        "url=%s error=%s"
-                    ),
-                    deeplink_url,
-                    schedule_error,
-                )
+            schedule: list[dict] = []
+            schedule_error: str | None = None
+            if deeplink_url and self.settings.enable_browser_connectors:
+                try:
+                    schedule = await self._extract_schedule_from_deeplink(deeplink_url)
+                except Exception as exc:
+                    schedule_error = self._describe_exception(exc)
+                    logger.warning(
+                        (
+                            "AirAsia schedule extraction failed; continuing without schedule. "
+                            "url=%s error=%s"
+                        ),
+                        deeplink_url,
+                        schedule_error,
+                    )
 
-        offer = self._build_offer(
-            query=query,
-            origin_station=origin.station_code,
-            destination_station=destination.station_code,
-            lowfare_item=lowfare_item,
-            booking_url=deeplink_url,
-            schedule=schedule,
-            deeplink_error=deeplink_error,
-            schedule_error=schedule_error,
-        )
-        return [offer]
+            all_offers = []
+            for lowfare_item in lowfare_items:
+                ui_booking_url = self._build_ui_booking_url(
+                    query=query,
+                    origin_station=origin.station_code,
+                    destination_station=destination.station_code,
+                )
+                offer = self._build_offer(
+                    query=query,
+                    origin_station=origin.station_code,
+                    destination_station=destination.station_code,
+                    lowfare_item=lowfare_item,
+                    booking_url=ui_booking_url,
+                    schedule=schedule,
+                    deeplink_error=deeplink_error,
+                    schedule_error=schedule_error,
+                )
+                all_offers.append(offer)
+            
+            return all_offers
 
     async def _resolve_station(
         self,
@@ -249,7 +260,7 @@ class AirAsiaConnector(FlightConnector):
         destination_station: str,
         currency: str,
         departure_date: date,
-    ) -> dict | None:
+    ) -> list[dict] | None:
         begin_date = date.today()
         end_date = max(begin_date + timedelta(days=45), departure_date + timedelta(days=7))
         params = {
@@ -298,7 +309,7 @@ class AirAsiaConnector(FlightConnector):
             priced_candidates.append((price, item))
         if not priced_candidates:
             return None
-        return min(priced_candidates, key=lambda item: item[0])[1]
+        return [item[1] for item in priced_candidates]
 
     async def _fetch_deeplink_url(
         self,
@@ -529,6 +540,42 @@ class AirAsiaConnector(FlightConnector):
             "currency": query.currency.upper(),
         }
         return f"https://www.airasia.com/en/gb?{urlencode(params)}"
+
+    def _build_ui_booking_url(
+        self,
+        *,
+        query: SearchCreateRequest,
+        origin_station: str,
+        destination_station: str,
+    ) -> str:
+        depart_date_str = query.departure_date.strftime("%d/%m/%Y")
+        
+        params = {
+            "origin": origin_station.upper(),
+            "destination": destination_station.upper(),
+            "departDate": depart_date_str,
+            "tripType": "R" if query.trip_type == TripType.round_trip else "O",
+            "adult": query.adults,
+            "child": query.children,
+            "infant": query.infants,
+            "locale": "en-gb",
+            "currency": query.currency.upper(),
+            "airlineProfile": "all",
+            "type": "paired",
+            "cabinClass": getattr(query.cabin, "value", "economy") if hasattr(query.cabin, "value") else str(query.cabin or "economy"),
+            "upsellWidget": "true",
+            "upsellPremiumFlatbedWidget": "true",
+            "isOC": "true",
+            "isDC": "false",
+            "uce": "true",
+            "ancillaryAbTest": "false",
+            "providers": "",
+            "taIDs": "",
+        }
+        if query.return_date:
+            params["returnDate"] = query.return_date.strftime("%d/%m/%Y")
+        
+        return f"https://www.airasia.com/flights/search/?{urlencode(params)}"
 
     def _describe_exception(self, exc: Exception) -> str:
         message = str(exc).strip()

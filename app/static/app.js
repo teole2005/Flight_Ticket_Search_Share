@@ -234,6 +234,7 @@ function renderResult(result) {
   bindOfferDetailFetch(result.search_id);
   renderFailures(result.failures || []);
   renderNoResultsPanel(result.status, result.cheapest_flight, result.connector_runs || []);
+  renderSourceSummaries(result);
 }
 
 function renderCheapest(searchId, offer) {
@@ -500,6 +501,59 @@ function renderNoResultsPanel(status, cheapestFlight, connectorRuns) {
   diagnostics.innerHTML = connectorRuns.map((run) => connectorRunMarkup(run)).join("");
 }
 
+function renderSourceSummaries(result) {
+  const grid = byId("sourceSummariesGrid");
+  const runs = result.connector_runs || [];
+  const status = result.status;
+
+  if (runs.length === 0 && (status === "queued" || status === "running")) {
+    grid.innerHTML = "<div class='empty'>Waiting for sources to return...</div>";
+    return;
+  }
+
+  if (runs.length === 0) {
+    grid.innerHTML = "<div class='empty'>No source data available for this search.</div>";
+    return;
+  }
+
+  // Calculate cheapest for each source
+  const cheapestPerSource = new Map();
+  // Include cheapest_flight and alternatives to find the minimum for each source
+  const allOffers = [];
+  if (result.cheapest_flight) allOffers.push(result.cheapest_flight);
+  if (result.alternatives) allOffers.push(...result.alternatives);
+
+  for (const offer of allOffers) {
+    const s = offer.source;
+    if (!cheapestPerSource.has(s) || offer.total_price < cheapestPerSource.get(s).total_price) {
+      cheapestPerSource.set(s, offer);
+    }
+  }
+
+  grid.innerHTML = runs.map((run) => {
+    const countLabel = `${Number(run.offer_count || 0)} offers`;
+    const cheapestOffer = cheapestPerSource.get(run.source);
+
+    let priceText = "No offers";
+    if (cheapestOffer) {
+      priceText = `Cheapest: ${formatMoney(cheapestOffer.total_price, cheapestOffer.currency)}`;
+    }
+
+    const isRunning = run.status === "running" ? " (Running...)" : "";
+
+    return `
+      <article class="diagnostic-card">
+        <div class="diagnostic-head">
+          <h4>${escapeHtml(formatSource(run.source))}${isRunning}</h4>
+          <span class="pill ${escapeHtml(run.status)}">${escapeHtml(run.status)}</span>
+        </div>
+        <p>${escapeHtml(countLabel)}</p>
+        <p class="summary-price" style="font-weight: 600; margin-top: 4px;">${escapeHtml(priceText)}</p>
+      </article>
+    `;
+  }).join("");
+}
+
 function connectorRunMarkup(run) {
   const errorText = formatMaybe(run.error_message, "No connector error message.");
   const latency = Number.isFinite(run.latency_ms) ? `${run.latency_ms} ms` : "N/A";
@@ -545,9 +599,10 @@ async function refreshHealth() {
     }
     renderHealth(data.connectors || []);
   } catch (error) {
-    grid.innerHTML = `<div class="empty">${escapeHtml(
+    grid.innerHTML = `< div class="empty" > ${escapeHtml(
       error instanceof Error ? error.message : "Connector health unavailable."
-    )}</div>`;
+    )
+      }</div > `;
   }
 }
 
@@ -564,19 +619,19 @@ function healthCardMarkup(item) {
   const latency = Number.isFinite(item.last_latency_ms) ? `${item.last_latency_ms} ms` : "N/A";
   const checkedAt = formatDateTime(item.last_checked_at);
   return `
-    <article class="health-card">
+    < article class="health-card" >
       <h4>${escapeHtml(formatSource(item.source))}</h4>
       <span class="pill ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
       <p>Latency: ${escapeHtml(latency)}</p>
       <p>Checked: ${escapeHtml(checkedAt)}</p>
-    </article>
-  `;
+    </article >
+    `;
 }
 
 function setStatus(status) {
   const pill = byId("statusPill");
   const normalized = status || "idle";
-  pill.className = `pill ${normalized}`;
+  pill.className = `pill ${normalized} `;
   pill.textContent = normalized.replace(/_/g, " ");
 }
 
@@ -591,6 +646,7 @@ function clearOffers() {
   byId("failuresList").innerHTML = "<li class='muted'>No connector errors for this search.</li>";
   byId("noResultsPanel").classList.add("hidden");
   byId("noResultsDiagnostics").innerHTML = "";
+  byId("sourceSummariesGrid").innerHTML = "<div class='empty'>Waiting for results...</div>";
 }
 
 function clearPollTimer() {
@@ -628,7 +684,7 @@ function formatDuration(minutes) {
   }
   const hours = Math.floor(totalMinutes / 60);
   const mins = totalMinutes % 60;
-  return `${hours}h ${mins}m`;
+  return `${hours}h ${mins} m`;
 }
 
 function formatDateTime(value) {
@@ -663,7 +719,7 @@ function formatMoney(value, currency) {
       maximumFractionDigits: 2,
     }).format(amount);
   } catch {
-    return `${amount.toFixed(2)} ${currency || DEFAULT_CURRENCY}`;
+    return `${amount.toFixed(2)} ${currency || DEFAULT_CURRENCY} `;
   }
 }
 

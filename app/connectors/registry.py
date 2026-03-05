@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from app.connectors.airasia import AirAsiaConnector
+from app.connectors.airpaz import AirpazConnector
 from app.connectors.base import FlightConnector
+from app.connectors.batikair import BatikAirConnector
 from app.connectors.mynztrip import MynztripConnector
 from app.connectors.trip_com import TripComConnector
 
@@ -13,6 +15,8 @@ class ConnectorRegistry:
             "trip_com": TripComConnector,
             "airasia": AirAsiaConnector,
             "mynztrip": MynztripConnector,
+            "batikair": BatikAirConnector,
+            "airpaz": AirpazConnector,
         }
 
     def build(self, requested_sources: list[str]) -> list[FlightConnector]:

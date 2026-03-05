@@ -25,7 +25,7 @@
       <p class="eyebrow">Automated fare intelligence</p>
       <h1>Search multiple sites and lock the cheapest flight quickly.</h1>
       <p class="subtitle">
-        Launch a query to `trip_com`, `airasia`, and other connectors. Results are ranked by total
+        Launch a query to `trip_com`, `airasia`, `batikair`, `airpaz`, and other connectors. Results are ranked by total
         price with direct booking links.
       </p>
     </header>
@@ -112,6 +112,14 @@
             <input type="checkbox" name="source" value="mynztrip" checked />
             <span>mynztrip</span>
           </label>
+          <label class="source-option">
+            <input type="checkbox" name="source" value="batikair" checked />
+            <span>batikair</span>
+          </label>
+          <label class="source-option">
+            <input type="checkbox" name="source" value="airpaz" checked />
+            <span>airpaz</span>
+          </label>
         </fieldset>
 
         <button id="searchButton" type="submit" class="primary-button">Search Cheapest Flights</button>
@@ -137,6 +145,15 @@
       </div>
     </section>
 
+    <section class="panel reveal" style="--delay: 0.2s" id="sourceSummariesSection" class="hidden">
+      <div class="panel-head">
+        <h2>Source Summaries</h2>
+      </div>
+      <div id="sourceSummariesGrid" class="diagnostic-grid">
+        <div class="empty">Waiting for results...</div>
+      </div>
+    </section>
+
     <section class="panel reveal" style="--delay: 0.24s">
       <h2>Best Offer</h2>
       <div id="cheapestContainer" class="empty">No results yet.</div>
@@ -151,7 +168,7 @@
         <ul class="hint-list">
           <li>Try nearby departure dates (for example +/- 2 days).</li>
           <li>Try one-way first, then compare round-trip total.</li>
-          <li>Run one source at a time (`trip_com` or `airasia`).</li>
+          <li>Run one source at a time (`trip_com`, `airasia`, `batikair`, or `airpaz`).</li>
           <li>Confirm airport code and currency combination.</li>
         </ul>
       </div>

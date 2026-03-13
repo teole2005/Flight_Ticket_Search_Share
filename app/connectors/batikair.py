@@ -185,7 +185,7 @@ class BatikAirConnector(FlightConnector):
             url = "https://www.batikair.com.my/"
             await page.goto(url)
 
-            trip_type = "Round trip" if query.return_date else "One way"
+            trip_type = "Round trip" if query.return_date else "One-way"
             await page.get_by_text(trip_type, exact=True).first.click()
             
             await page.get_by_role("combobox").nth(1).fill(query.origin)
